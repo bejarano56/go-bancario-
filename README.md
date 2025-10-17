@@ -1,3 +1,15 @@
+Quick start
+
+1) Importa `migrations.sql` en MySQL y asegúrate de que el usuario `root` no tiene contraseña o ajusta `Models/db.go`.
+2) Ejecuta: `go run main.go`.
+3) Abre http://localhost:8080/.
+
+Endpoints
+- GET /clientes
+- POST /clientes
+- GET /cuentas
+- POST /cuentas
+- PUT /cuentas (transferir) body: id_origen, id_destino, id_tipo_transaccion, monto, referencia, descripcion
 # Sistema Bancario Go (MVC)
 
 ## Ejecución rápida

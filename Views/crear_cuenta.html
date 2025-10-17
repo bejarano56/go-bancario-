@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Crear cuenta - Sistema Bancario</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/styles.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="/">Sistema Bancario</a>
+    <div>
+      <a class="nav-link d-inline text-white" href="/crear">Crear cuenta</a>
+      <a class="nav-link d-inline text-white" href="/transferir">Transferir</a>
+      <a class="nav-link d-inline text-white" href="/listado">Cuentas</a>
+    </div>
+  </div>
+  </nav>
+
+<div class="container my-4">
+  <div class="col-12 col-lg-6 mx-auto">
+    <div class="card shadow-sm">
+      <div class="card-header">Crear cuenta</div>
+      <div class="card-body">
+        <form id="form-cuenta" class="row g-3" method="POST" action="/cuentas">
+          <div class="col-6">
+            <label class="form-label">Tipo documento</label>
+            <select id="tipo_documento" class="form-select" required>
+              <option value="CC">Cédula</option>
+              <option value="TI">Tarjeta Identidad</option>
+              <option value="CE">Cédula Extranjería</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Número documento</label>
+            <input type="text" id="numero_documento" class="form-control" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Primer nombre</label>
+            <input type="text" id="primer_nombre" class="form-control" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Segundo nombre</label>
+            <input type="text" id="segundo_nombre" class="form-control">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Primer apellido</label>
+            <input type="text" id="primer_apellido" class="form-control" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Segundo apellido</label>
+            <input type="text" id="segundo_apellido" class="form-control">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Email</label>
+            <input type="email" id="email" class="form-control" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Teléfono</label>
+            <input type="text" id="telefono" class="form-control">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Tipo de cuenta</label>
+            <select id="id_tipo_cuenta" class="form-select" required></select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Saldo inicial</label>
+            <input type="text" id="saldo" class="form-control" value="$500.000" disabled>
+            <div class="form-text">Moneda: pesos colombianos (COP)</div>
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-primary w-100">Crear cuenta</button>
+          </div>
+          <div class="col-12">
+            <small class="text-muted">El número de cuenta y el ID del cliente se generan automáticamente.</small>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') === '1') {
+      const numero = params.get('numero') || '';
+      const id = params.get('id') || '';
+      Swal.fire({ icon: 'success', title: 'Cuenta creada', text: `Número: ${numero}  |  ID: ${id}`, timer: 4000, showConfirmButton: false });
+      history.replaceState(null, '', window.location.pathname);
+    } else if (params.get('error')) {
+      Swal.fire({ icon: 'error', title: 'Error', text: params.get('error') });
+      history.replaceState(null, '', window.location.pathname);
+    }
+  })();
+</script>
+
+</body>
+</html>
+
