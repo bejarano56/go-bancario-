@@ -3,14 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <title>Sistema Bancario Go</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        table { border-collapse: collapse; width: 100%; margin-top: 1em; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background: #eee; }
+        input[type=text], input[type=number] { padding: 5px; margin-right: 10px; }
+        button { padding: 5px 10px; }
+    </style>
 </head>
 <body>
-    <h1>API Bancaria Go</h1>
-    <p>Usa Postman o curl para probar los endpoints:</p>
-    <ul>
-        <li>GET /cuentas - Listar cuentas</li>
-        <li>POST /cuentas - Crear cuenta (owner, balance)</li>
-        <li>PUT /cuentas - Transferir (from, to, amount)</li>
-    </ul>
+    <h1>Sistema Bancario Go</h1>
+    <form id="form-cuenta">
+        <input type="text" id="owner" placeholder="Titular" required>
+        <input type="number" id="balance" placeholder="Saldo inicial" required>
+        <button type="submit">Crear cuenta</button>
+    </form>
+    <h2>Listado de cuentas</h2>
+    <table id="tabla-cuentas">
+        <thead>
+            <tr><th>ID</th><th>Titular</th><th>Saldo</th></tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <script>
+    function cargarCuentas() {
+        fetch('/cuentas')
+            .then(r => r.json())
+            .then(data => {
+                const tbody = document.querySelector('#tabla-cuentas tbody');
+                tbody.innerHTML = '';
+                if (Array.isArray(data)) {
+                    data.forEach(c => {
+                        tbody.innerHTML += `<tr><td>${c.ID}</td><td>${c.Owner}</td><td>${c.Balance}</td></tr>`;
+                    });
+                }
+            });
+    }
+    document.getElementById('form-cuenta').onsubmit = function(e) {
+        e.preventDefault();
+        const owner = document.getElementById('owner').value;
+        const balance = document.getElementById('balance').value;
+        fetch('/cuentas', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `owner=${encodeURIComponent(owner)}&balance=${encodeURIComponent(balance)}`
+        }).then(() => {
+            cargarCuentas();
+            this.reset();
+        });
+    };
+    cargarCuentas();
+    </script>
 </body>
 </html>
