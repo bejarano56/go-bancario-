@@ -13,7 +13,7 @@ func main() {
 	}
 	http.HandleFunc("/cuentas", Controllers.AccountHandler)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "Views/index.html")
+		http.ServeFile(w, r, "c:/Users/juan david/Documents/Trabajos ADSO/Programación/go-bancario-/Views/index.html")
 	})
 	log.Println("Servidor iniciado en :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
