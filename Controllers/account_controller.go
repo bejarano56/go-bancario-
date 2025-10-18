@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -27,9 +26,16 @@ func AccountHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == "POST" {
 		log.Println("POST /cuentas - inicio")
+		if err := r.ParseForm(); err != nil {
+			log.Println("Error parsing form:", err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"message": "Error parsing form"}`))
+			return
+		}
 		idTipo, _ := strconv.Atoi(r.FormValue("id_tipo_cuenta"))
 
-        // datos del cliente desde el formulario
+		      // datos del cliente desde el formulario
 		cliente := Models.Cliente{
 			NumeroDocumento: r.FormValue("numero_documento"),
 			TipoDocumento:   r.FormValue("tipo_documento"),
@@ -53,20 +59,27 @@ func AccountHandler(w http.ResponseWriter, r *http.Request) {
 
         // validaciones mínimas servidor
         if cliente.NumeroDocumento == "" || cliente.TipoDocumento == "" || cliente.PrimerNombre == "" || cliente.PrimerApellido == "" || cliente.Email == "" || cliente.FechaNacimiento.IsZero() {
-			http.Redirect(w, r, "/crear?error="+urlQuery("Campos requeridos faltantes"), http.StatusSeeOther)
-			return
-		}
-		if idTipo == 0 {
-			http.Redirect(w, r, "/crear?error="+urlQuery("Seleccione un tipo de cuenta"), http.StatusSeeOther)
-			return
-		}
+        	w.Header().Set("Content-Type", "application/json")
+        	w.WriteHeader(http.StatusBadRequest)
+        	w.Write([]byte(`{"message": "Campos requeridos faltantes"}`))
+        	return
+        }
+        if idTipo == 0 {
+        	log.Println("idTipo es 0, valores del form:", r.FormValue("id_tipo_cuenta"))
+        	w.Header().Set("Content-Type", "application/json")
+        	w.WriteHeader(http.StatusBadRequest)
+        	w.Write([]byte(`{"message": "Seleccione un tipo de cuenta"}`))
+        	return
+        }
 
 		// si ya existe el cliente, reutilizar ID; si no, crearlo
 		log.Println("POST /cuentas - crear/obtener cliente")
 		idCliente, err := Models.CrearOObtenerCliente(cliente)
 		if err != nil {
 			log.Println("error crear/obtener cliente:", err)
-			http.Redirect(w, r, "/crear?error="+urlQuery(err.Error()), http.StatusSeeOther)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf(`{"message": "Error creando cliente: %s"}`, err.Error())))
 			return
 		}
 
@@ -75,7 +88,9 @@ func AccountHandler(w http.ResponseWriter, r *http.Request) {
 		tipos, err := Models.ListarTiposCuenta()
 		if err != nil {
 			log.Println("error listar tipos:", err)
-			http.Redirect(w, r, "/crear?error="+urlQuery("No se pudieron cargar los tipos de cuenta"), http.StatusSeeOther)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"message": "No se pudieron cargar los tipos de cuenta"}`))
 			return
 		}
 		tipoValido := false
@@ -86,7 +101,9 @@ func AccountHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !tipoValido {
-			http.Error(w, "Tipo de cuenta inválido", http.StatusBadRequest)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"message": "Tipo de cuenta inválido"}`))
 			return
 		}
 
@@ -95,7 +112,9 @@ func AccountHandler(w http.ResponseWriter, r *http.Request) {
 		numero, err := Models.GenerarNumeroCuenta(nil)
 		if err != nil {
 			log.Println("error generar numero:", err)
-			http.Redirect(w, r, "/crear?error="+urlQuery("No se pudo generar el número de cuenta"), http.StatusSeeOther)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"message": "No se pudo generar el número de cuenta"}`))
 			return
 		}
         saldo := 500000.00
@@ -104,7 +123,9 @@ func AccountHandler(w http.ResponseWriter, r *http.Request) {
         var idEstado int
         if err := Models.DB.QueryRow(`SELECT id_estado FROM estado_cuenta WHERE nombre_estado='Activa'`).Scan(&idEstado); err != nil {
             log.Println("error estado activa:", err)
-            http.Redirect(w, r, "/crear?error="+urlQuery("No se pudo obtener el estado 'Activa'"), http.StatusSeeOther)
+            w.Header().Set("Content-Type", "application/json")
+            w.WriteHeader(http.StatusInternalServerError)
+            w.Write([]byte(`{"message": "No se pudo obtener el estado 'Activa'"}`))
             return
         }
 
@@ -120,12 +141,16 @@ func AccountHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			log.Println("error crear cuenta:", err)
-			http.Redirect(w, r, "/crear?error="+urlQuery(err.Error()), http.StatusSeeOther)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf(`{"message": "Error creando cuenta: %s"}`, err.Error())))
 			return
 		}
-		// siempre redirigir con éxito
-		log.Println("POST /cuentas - exito, redirigiendo")
-		http.Redirect(w, r, "/crear?success=1&numero="+urlQuery(numero)+"&id="+strconv.FormatInt(cuentaID, 10), http.StatusSeeOther)
+		// devolver JSON para AJAX
+		log.Println("POST /cuentas - exito, devolviendo JSON")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fmt.Sprintf(`{"message": "Cuenta creada exitosamente", "numero_cuenta": "%s", "id_cuenta": %d}`, numero, cuentaID)))
 		return
 	}
 	if r.Method == "PUT" {
@@ -233,124 +258,3 @@ func TiposCuentaHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func urlQuery(s string) string { return url.QueryEscape(s) }
-
-// Página de creación: renderiza opciones de tipo de cuenta sin JS
-func CrearPageHandler(w http.ResponseWriter, r *http.Request) {
-	tipos, err := Models.ListarTiposCuenta()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	var opts strings.Builder
-	opts.WriteString(`<option value="" disabled selected>Selecciona un tipo</option>`)
-	for _, t := range tipos {
-		fmt.Fprintf(&opts, `<option value="%d">%s</option>`, t.IDTipoCuenta, t.NombreTipo)
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, `<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Crear cuenta - Sistema Bancario</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="/static/css/styles.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-</head>
-<body>
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="/">Sistema Bancario</a>
-    <div>
-      <a class="nav-link d-inline text-white" href="/crear">Crear cuenta</a>
-      <a class="nav-link d-inline text-white" href="/transferir">Transferir</a>
-      <a class="nav-link d-inline text-white" href="/listado">Cuentas</a>
-    </div>
-  </div>
-  </nav>
-
-<div class="container my-4">
-  <div class="col-12 col-lg-8 mx-auto">
-    <div class="card shadow-sm">
-      <div class="card-header">Crear cuenta</div>
-      <div class="card-body">
-        <form id="form-cuenta" class="row g-3" method="POST" action="/cuentas">
-          <div class="col-6">
-            <label class="form-label">Tipo documento</label>
-            <select id="tipo_documento" name="tipo_documento" class="form-select" required>
-              <option value="CC">Cédula</option>
-              <option value="TI">Tarjeta Identidad</option>
-              <option value="CE">Cédula Extranjería</option>
-            </select>
-          </div>
-          <div class="col-6">
-            <label class="form-label">Número documento</label>
-            <input type="text" id="numero_documento" name="numero_documento" class="form-control" required>
-          </div>
-          <div class="col-6">
-            <label class="form-label">Primer nombre</label>
-            <input type="text" id="primer_nombre" name="primer_nombre" class="form-control" required>
-          </div>
-          <div class="col-6">
-            <label class="form-label">Segundo nombre</label>
-            <input type="text" id="segundo_nombre" name="segundo_nombre" class="form-control">
-          </div>
-          <div class="col-6">
-            <label class="form-label">Primer apellido</label>
-            <input type="text" id="primer_apellido" name="primer_apellido" class="form-control" required>
-          </div>
-          <div class="col-6">
-            <label class="form-label">Segundo apellido</label>
-            <input type="text" id="segundo_apellido" name="segundo_apellido" class="form-control">
-          </div>
-          <div class="col-6">
-            <label class="form-label">Email</label>
-            <input type="email" id="email" name="email" class="form-control" required>
-          </div>
-          <div class="col-6">
-            <label class="form-label">Teléfono</label>
-            <input type="text" id="telefono" name="telefono" class="form-control">
-          </div>
-          <div class="col-6">
-            <label class="form-label">Fecha de nacimiento</label>
-            <input type="date" id="fecha_nacimiento" name="fecha_nacimiento" class="form-control" required>
-          </div>
-          <div class="col-12">
-            <label class="form-label">Tipo de cuenta</label>
-            <select id="id_tipo_cuenta" name="id_tipo_cuenta" class="form-select" required>%s</select>
-          </div>
-          <div class="col-12">
-            <label class="form-label">Saldo inicial</label>
-            <input type="text" id="saldo" class="form-control" value="$500.000" disabled>
-            <div class="form-text">Moneda: pesos colombianos (COP)</div>
-          </div>
-          <div class="col-12">
-            <button type="submit" class="btn btn-primary w-100">Crear cuenta</button>
-          </div>
-          <div class="col-12">
-            <small class="text-muted">El número de cuenta y el ID del cliente se generan automáticamente.</small>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script>
-  (function(){
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('success') === '1') {
-      const numero = params.get('numero') || '';
-      const id = params.get('id') || '';
-      Swal.fire({ icon: 'success', title: 'Cuenta creada', text: 'Número: ' + numero + '  |  ID: ' + id, timer: 4000, showConfirmButton: false });
-      history.replaceState(null, '', window.location.pathname);
-    } else if (params.get('error')) {
-      Swal.fire({ icon: 'error', title: 'Error', text: params.get('error') });
-      history.replaceState(null, '', window.location.pathname);
-    }
-  })();
-</script>
-
-</body>
-</html>`, opts.String())
-}

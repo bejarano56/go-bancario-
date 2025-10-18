@@ -33,9 +33,13 @@ func main() {
 	fs := http.FileServer(http.Dir(filepath.FromSlash("public")))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
-	// Páginas (render servidor para crear)
-	safeHandle("/", Controllers.CrearPageHandler)
-	safeHandle("/crear", Controllers.CrearPageHandler)
+	// Páginas (archivos estáticos)
+	safeHandle("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, filepath.FromSlash("Views/index.html"))
+	})
+	safeHandle("/crear", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, filepath.FromSlash("Views/crear_cuenta.html"))
+	})
 	safeHandle("/transferir", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, filepath.FromSlash("Views/transferir.html"))
 	})
