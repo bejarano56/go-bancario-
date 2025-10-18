@@ -102,7 +102,7 @@ func AccountHandler(w http.ResponseWriter, r *http.Request) {
 		fecha := time.Now()
         // obtener id estado 'Activa'
         var idEstado int
-        if err := Models.DB.QueryRow(`SELECT id_estado FROM ESTADO_CUENTA WHERE nombre_estado='Activa'`).Scan(&idEstado); err != nil {
+        if err := Models.DB.QueryRow(`SELECT id_estado FROM estado_cuenta WHERE nombre_estado='Activa'`).Scan(&idEstado); err != nil {
             log.Println("error estado activa:", err)
             http.Redirect(w, r, "/crear?error="+urlQuery("No se pudo obtener el estado 'Activa'"), http.StatusSeeOther)
             return

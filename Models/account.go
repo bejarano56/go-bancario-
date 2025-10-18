@@ -3,6 +3,7 @@ package Models
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -42,6 +43,8 @@ type Cuenta struct {
     SaldoActual   float64
     SaldoDisp     float64
     FechaApertura time.Time
+    EstadoNombre  string  // Campo temporal para el nombre del estado
+    TipoNombre    string  // Campo temporal para el nombre del tipo
 }
 
 type Transaccion struct {
@@ -69,7 +72,7 @@ type Auditoria struct {
 
 // Catálogos
 func ListarTiposCuenta() ([]TipoCuenta, error) {
-    rows, err := DB.Query(`SELECT id_tipo_cuenta, nombre_tipo, saldo_minimo FROM TIPO_CUENTA ORDER BY nombre_tipo`)
+    rows, err := DB.Query(`SELECT id_tipo_cuenta, nombre_tipo, saldo_minimo FROM tipo_cuenta ORDER BY nombre_tipo`)
 	if err != nil {
 		return nil, err
 	}
@@ -83,13 +86,13 @@ func ListarTiposCuenta() ([]TipoCuenta, error) {
 		items = append(items, t)
 	}
 	if len(items) == 0 {
-		if _, err := DB.Exec(`INSERT INTO TIPO_CUENTA (nombre_tipo, saldo_minimo) VALUES
+		if _, err := DB.Exec(`INSERT INTO tipo_cuenta (nombre_tipo, saldo_minimo) VALUES
             ('Ahorros', 0.00),
             ('Corriente', 0.00),
             ('Nómina', 0.00)`); err != nil {
 			return nil, err
 		}
-		rows2, err := DB.Query(`SELECT id_tipo_cuenta, nombre_tipo, saldo_minimo FROM TIPO_CUENTA ORDER BY nombre_tipo`)
+		rows2, err := DB.Query(`SELECT id_tipo_cuenta, nombre_tipo, saldo_minimo FROM tipo_cuenta ORDER BY nombre_tipo`)
 		if err != nil {
 			return nil, err
 		}
@@ -110,7 +113,7 @@ func GenerarNumeroCuenta(tx *sql.Tx) (string, error) {
 	for i := 0; i < 5; i++ {
 		candidate := time.Now().Format("20060102") + RandDigits(8)
 		var exists int
-		q := `SELECT 1 FROM CUENTA WHERE numero_cuenta=? LIMIT 1`
+		q := `SELECT 1 FROM cuenta WHERE numero_cuenta=? LIMIT 1`
 		var err error
 		if tx != nil {
 			err = tx.QueryRow(q, candidate).Scan(&exists)
@@ -150,7 +153,7 @@ func RandDigits(n int) string {
 
 // Clientes
 func CrearCliente(c Cliente) (int64, error) {
-    res, err := DB.Exec(`INSERT INTO CLIENTE (numero_documento, tipo_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, email, telefono, fecha_nacimiento) VALUES (?,?,?,?,?,?,?,?,?)`,
+    res, err := DB.Exec(`INSERT INTO cliente (numero_documento, tipo_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, email, telefono, fecha_nacimiento) VALUES (?,?,?,?,?,?,?,?,?)`,
         c.NumeroDocumento, c.TipoDocumento, c.PrimerNombre, c.SegundoNombre, c.PrimerApellido, c.SegundoApellido, c.Email, c.Telefono, c.FechaNacimiento)
 	if err != nil {
 		return 0, err
@@ -159,7 +162,7 @@ func CrearCliente(c Cliente) (int64, error) {
 }
 
 func ListarClientes() ([]Cliente, error) {
-    rows, err := DB.Query(`SELECT id_cliente, numero_documento, tipo_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, email, telefono, fecha_nacimiento, fecha_registro FROM CLIENTE`)
+    rows, err := DB.Query(`SELECT id_cliente, numero_documento, tipo_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, email, telefono, fecha_nacimiento, fecha_registro FROM cliente`)
 	if err != nil {
 		return nil, err
 	}
@@ -181,14 +184,14 @@ func ObtenerClienteIDPorDocumento(numeroDocumento string) (int, error) {
 		return 0, errors.New("numero_documento requerido")
 	}
 	var cnt int
-	if err := DB.QueryRow(`SELECT COUNT(*) FROM CLIENTE WHERE numero_documento = ?`, numeroDocumento).Scan(&cnt); err != nil {
+	if err := DB.QueryRow(`SELECT COUNT(*) FROM cliente WHERE numero_documento = ?`, numeroDocumento).Scan(&cnt); err != nil {
 		return 0, err
 	}
 	if cnt == 0 {
 		return 0, sql.ErrNoRows
 	}
 	var id int
-	if err := DB.QueryRow(`SELECT id_cliente FROM CLIENTE WHERE numero_documento = ? LIMIT 1`, numeroDocumento).Scan(&id); err != nil {
+	if err := DB.QueryRow(`SELECT id_cliente FROM cliente WHERE numero_documento = ? LIMIT 1`, numeroDocumento).Scan(&id); err != nil {
 		return 0, err
 	}
 	return id, nil
@@ -196,7 +199,7 @@ func ObtenerClienteIDPorDocumento(numeroDocumento string) (int, error) {
 
 // Crea el cliente o retorna el ID si ya existe por clave única (numero_documento o email)
 func CrearOObtenerCliente(c Cliente) (int, error) {
-    res, err := DB.Exec(`INSERT INTO CLIENTE (numero_documento, tipo_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, email, telefono, fecha_nacimiento)
+    res, err := DB.Exec(`INSERT INTO cliente (numero_documento, tipo_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, email, telefono, fecha_nacimiento)
         VALUES (?,?,?,?,?,?,?,?,?)
         ON DUPLICATE KEY UPDATE fecha_nacimiento = VALUES(fecha_nacimiento), id_cliente = LAST_INSERT_ID(id_cliente)`,
         c.NumeroDocumento, c.TipoDocumento, c.PrimerNombre, c.SegundoNombre, c.PrimerApellido, c.SegundoApellido, c.Email, c.Telefono, c.FechaNacimiento)
@@ -212,7 +215,7 @@ func CrearOObtenerCliente(c Cliente) (int, error) {
 
 // Cuentas
 func CrearCuenta(c Cuenta) (int64, error) {
-    res, err := DB.Exec(`INSERT INTO CUENTA (numero_cuenta, id_cliente, id_tipo_cuenta, id_estado, saldo_actual, saldo_disponible, fecha_apertura) VALUES (?,?,?,?,?,?,?)`,
+    res, err := DB.Exec(`INSERT INTO cuenta (numero_cuenta, id_cliente, id_tipo_cuenta, id_estado, saldo_actual, saldo_disponible, fecha_apertura) VALUES (?,?,?,?,?,?,?)`,
         c.NumeroCuenta, c.IDCliente, c.IDTipoCuenta, c.IDEstado, c.SaldoActual, c.SaldoDisp, c.FechaApertura)
 	if err != nil {
 		return 0, err
@@ -221,7 +224,10 @@ func CrearCuenta(c Cuenta) (int64, error) {
 }
 
 func ListarCuentas() ([]Cuenta, error) {
-    rows, err := DB.Query(`SELECT id_cuenta, numero_cuenta, id_cliente, id_tipo_cuenta, id_estado, saldo_actual, saldo_disponible, fecha_apertura FROM CUENTA`)
+    rows, err := DB.Query(`SELECT c.id_cuenta, c.numero_cuenta, c.id_cliente, c.id_tipo_cuenta, c.id_estado, c.saldo_actual, c.saldo_disponible, c.fecha_apertura, ec.nombre_estado, tc.nombre_tipo 
+        FROM cuenta c 
+        LEFT JOIN estado_cuenta ec ON c.id_estado = ec.id_estado
+        LEFT JOIN tipo_cuenta tc ON c.id_tipo_cuenta = tc.id_tipo_cuenta`)
 	if err != nil {
 		return nil, err
 	}
@@ -229,8 +235,24 @@ func ListarCuentas() ([]Cuenta, error) {
 	var items []Cuenta
 	for rows.Next() {
 		var c Cuenta
-        if err := rows.Scan(&c.IDCuenta, &c.NumeroCuenta, &c.IDCliente, &c.IDTipoCuenta, &c.IDEstado, &c.SaldoActual, &c.SaldoDisp, &c.FechaApertura); err != nil {
+		var nombreEstado, nombreTipo sql.NullString
+        if err := rows.Scan(&c.IDCuenta, &c.NumeroCuenta, &c.IDCliente, &c.IDTipoCuenta, &c.IDEstado, &c.SaldoActual, &c.SaldoDisp, &c.FechaApertura, &nombreEstado, &nombreTipo); err != nil {
 			return nil, err
+		}
+		// Debug: imprimir valores
+		fmt.Printf("DEBUG - ID: %d, Estado: %s (Valid: %t), Tipo: %s (Valid: %t), Saldo: %f\n", 
+			c.IDCuenta, nombreEstado.String, nombreEstado.Valid, nombreTipo.String, nombreTipo.Valid, c.SaldoActual)
+		
+		// Manejar valores NULL
+		if nombreEstado.Valid {
+			c.EstadoNombre = nombreEstado.String
+		} else {
+			c.EstadoNombre = fmt.Sprintf("Estado %d", c.IDEstado)
+		}
+		if nombreTipo.Valid {
+			c.TipoNombre = nombreTipo.String
+		} else {
+			c.TipoNombre = fmt.Sprintf("Tipo %d", c.IDTipoCuenta)
 		}
 		items = append(items, c)
 	}
