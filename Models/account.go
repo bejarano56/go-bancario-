@@ -10,7 +10,7 @@ import (
 type TipoCuenta struct {
 	IDTipoCuenta int
 	NombreTipo   string
-	SaldoMinimo  float64
+    SaldoMinimo  float64
 }
 
 type TipoTransaccion struct {
@@ -29,6 +29,7 @@ type Cliente struct {
 	SegundoApellido sql.NullString
 	Email           string
 	Telefono        sql.NullString
+    FechaNacimiento time.Time
 	FechaRegistro   time.Time
 }
 
@@ -37,9 +38,10 @@ type Cuenta struct {
 	NumeroCuenta  string
 	IDCliente     int
 	IDTipoCuenta  int
-	Saldo         float64
-	Activa        bool
-	FechaApertura time.Time
+    IDEstado      int
+    SaldoActual   float64
+    SaldoDisp     float64
+    FechaApertura time.Time
 }
 
 type Transaccion struct {
@@ -47,11 +49,12 @@ type Transaccion struct {
 	IDCuentaOrigen    int
 	IDCuentaDestino   sql.NullInt64
 	IDTipoTransaccion int
+    IDEstadoTrans     int
 	Monto             float64
 	Referencia        string
 	Descripcion       sql.NullString
-	Fecha             time.Time
-	Completada        bool
+    FechaTransaccion  time.Time
+    FechaProcesamiento sql.NullTime
 }
 
 type Auditoria struct {
@@ -61,12 +64,12 @@ type Auditoria struct {
 	SaldoNuevoOrigen     sql.NullFloat64
 	SaldoAnteriorDestino sql.NullFloat64
 	SaldoNuevoDestino    sql.NullFloat64
-	Fecha                time.Time
+    Fecha                time.Time
 }
 
 // Catálogos
 func ListarTiposCuenta() ([]TipoCuenta, error) {
-	rows, err := DB.Query(`SELECT id_tipo_cuenta, nombre_tipo, saldo_minimo FROM TIPO_CUENTA ORDER BY nombre_tipo`)
+    rows, err := DB.Query(`SELECT id_tipo_cuenta, nombre_tipo, saldo_minimo FROM TIPO_CUENTA ORDER BY nombre_tipo`)
 	if err != nil {
 		return nil, err
 	}
@@ -135,15 +138,20 @@ func RandDigits(n int) string {
 	seed := time.Now().UnixNano()
 	for i := 0; i < n; i++ {
 		seed = (seed*1664525 + 1013904223) % 2147483647
-		b[i] = digits[int(seed)%10]
+		// Usar valor absoluto para asegurar índice positivo
+		idx := int(seed)
+		if idx < 0 {
+			idx = -idx
+		}
+		b[i] = digits[idx%10]
 	}
 	return string(b)
 }
 
 // Clientes
 func CrearCliente(c Cliente) (int64, error) {
-	res, err := DB.Exec(`INSERT INTO CLIENTE (numero_documento, tipo_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, email, telefono) VALUES (?,?,?,?,?,?,?,?)`,
-		c.NumeroDocumento, c.TipoDocumento, c.PrimerNombre, c.SegundoNombre, c.PrimerApellido, c.SegundoApellido, c.Email, c.Telefono)
+    res, err := DB.Exec(`INSERT INTO CLIENTE (numero_documento, tipo_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, email, telefono, fecha_nacimiento) VALUES (?,?,?,?,?,?,?,?,?)`,
+        c.NumeroDocumento, c.TipoDocumento, c.PrimerNombre, c.SegundoNombre, c.PrimerApellido, c.SegundoApellido, c.Email, c.Telefono, c.FechaNacimiento)
 	if err != nil {
 		return 0, err
 	}
@@ -151,7 +159,7 @@ func CrearCliente(c Cliente) (int64, error) {
 }
 
 func ListarClientes() ([]Cliente, error) {
-	rows, err := DB.Query(`SELECT id_cliente, numero_documento, tipo_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, email, telefono, fecha_registro FROM CLIENTE`)
+    rows, err := DB.Query(`SELECT id_cliente, numero_documento, tipo_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, email, telefono, fecha_nacimiento, fecha_registro FROM CLIENTE`)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +167,7 @@ func ListarClientes() ([]Cliente, error) {
 	var items []Cliente
 	for rows.Next() {
 		var c Cliente
-		if err := rows.Scan(&c.IDCliente, &c.NumeroDocumento, &c.TipoDocumento, &c.PrimerNombre, &c.SegundoNombre, &c.PrimerApellido, &c.SegundoApellido, &c.Email, &c.Telefono, &c.FechaRegistro); err != nil {
+        if err := rows.Scan(&c.IDCliente, &c.NumeroDocumento, &c.TipoDocumento, &c.PrimerNombre, &c.SegundoNombre, &c.PrimerApellido, &c.SegundoApellido, &c.Email, &c.Telefono, &c.FechaNacimiento, &c.FechaRegistro); err != nil {
 			return nil, err
 		}
 		items = append(items, c)
@@ -188,10 +196,10 @@ func ObtenerClienteIDPorDocumento(numeroDocumento string) (int, error) {
 
 // Crea el cliente o retorna el ID si ya existe por clave única (numero_documento o email)
 func CrearOObtenerCliente(c Cliente) (int, error) {
-	res, err := DB.Exec(`INSERT INTO CLIENTE (numero_documento, tipo_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, email, telefono)
-        VALUES (?,?,?,?,?,?,?,?)
-        ON DUPLICATE KEY UPDATE id_cliente = LAST_INSERT_ID(id_cliente)`,
-		c.NumeroDocumento, c.TipoDocumento, c.PrimerNombre, c.SegundoNombre, c.PrimerApellido, c.SegundoApellido, c.Email, c.Telefono)
+    res, err := DB.Exec(`INSERT INTO CLIENTE (numero_documento, tipo_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, email, telefono, fecha_nacimiento)
+        VALUES (?,?,?,?,?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE fecha_nacimiento = VALUES(fecha_nacimiento), id_cliente = LAST_INSERT_ID(id_cliente)`,
+        c.NumeroDocumento, c.TipoDocumento, c.PrimerNombre, c.SegundoNombre, c.PrimerApellido, c.SegundoApellido, c.Email, c.Telefono, c.FechaNacimiento)
 	if err != nil {
 		return 0, err
 	}
@@ -204,8 +212,8 @@ func CrearOObtenerCliente(c Cliente) (int, error) {
 
 // Cuentas
 func CrearCuenta(c Cuenta) (int64, error) {
-	res, err := DB.Exec(`INSERT INTO CUENTA (numero_cuenta, id_cliente, id_tipo_cuenta, saldo, activa, fecha_apertura) VALUES (?,?,?,?,?,?)`,
-		c.NumeroCuenta, c.IDCliente, c.IDTipoCuenta, c.Saldo, c.Activa, c.FechaApertura)
+    res, err := DB.Exec(`INSERT INTO CUENTA (numero_cuenta, id_cliente, id_tipo_cuenta, id_estado, saldo_actual, saldo_disponible, fecha_apertura) VALUES (?,?,?,?,?,?,?)`,
+        c.NumeroCuenta, c.IDCliente, c.IDTipoCuenta, c.IDEstado, c.SaldoActual, c.SaldoDisp, c.FechaApertura)
 	if err != nil {
 		return 0, err
 	}
@@ -213,7 +221,7 @@ func CrearCuenta(c Cuenta) (int64, error) {
 }
 
 func ListarCuentas() ([]Cuenta, error) {
-	rows, err := DB.Query(`SELECT id_cuenta, numero_cuenta, id_cliente, id_tipo_cuenta, saldo, activa, fecha_apertura FROM CUENTA`)
+    rows, err := DB.Query(`SELECT id_cuenta, numero_cuenta, id_cliente, id_tipo_cuenta, id_estado, saldo_actual, saldo_disponible, fecha_apertura FROM CUENTA`)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +229,7 @@ func ListarCuentas() ([]Cuenta, error) {
 	var items []Cuenta
 	for rows.Next() {
 		var c Cuenta
-		if err := rows.Scan(&c.IDCuenta, &c.NumeroCuenta, &c.IDCliente, &c.IDTipoCuenta, &c.Saldo, &c.Activa, &c.FechaApertura); err != nil {
+        if err := rows.Scan(&c.IDCuenta, &c.NumeroCuenta, &c.IDCliente, &c.IDTipoCuenta, &c.IDEstado, &c.SaldoActual, &c.SaldoDisp, &c.FechaApertura); err != nil {
 			return nil, err
 		}
 		items = append(items, c)
@@ -241,53 +249,62 @@ func Transferir(idOrigen, idDestino, idTipoTransaccion int, monto float64, refer
 	defer tx.Rollback()
 
 	// Saldos actuales
-	var saldoOrigen float64
-	if err := tx.QueryRow(`SELECT saldo FROM CUENTA WHERE id_cuenta=? FOR UPDATE`, idOrigen).Scan(&saldoOrigen); err != nil {
+    var saldoOrigen float64
+    if err := tx.QueryRow(`SELECT saldo_disponible FROM CUENTA WHERE id_cuenta=? FOR UPDATE`, idOrigen).Scan(&saldoOrigen); err != nil {
 		return err
 	}
 	if saldoOrigen < monto {
 		return errors.New("fondos insuficientes")
 	}
 
-	var saldoDestino sql.NullFloat64
-	if err := tx.QueryRow(`SELECT saldo FROM CUENTA WHERE id_cuenta=? FOR UPDATE`, idDestino).Scan(&saldoDestino); err != nil {
+    var saldoDestino sql.NullFloat64
+    if err := tx.QueryRow(`SELECT saldo_disponible FROM CUENTA WHERE id_cuenta=? FOR UPDATE`, idDestino).Scan(&saldoDestino); err != nil {
 		return err
 	}
 
 	// Registrar transacción pendiente
-	res, err := tx.Exec(`INSERT INTO TRANSACCION (id_cuenta_origen, id_cuenta_destino, id_tipo_transaccion, monto, referencia, descripcion, completada) VALUES (?,?,?,?,?,?,false)`,
-		idOrigen, idDestino, idTipoTransaccion, monto, referencia, descripcion)
+    // estado inicial: Pendiente (buscar id)
+    var idEstadoPendiente int
+    if err := tx.QueryRow(`SELECT id_estado_transaccion FROM ESTADO_TRANSACCION WHERE nombre_estado = 'Pendiente'`).Scan(&idEstadoPendiente); err != nil {
+        return err
+    }
+    res, err := tx.Exec(`INSERT INTO TRANSACCION (id_cuenta_origen, id_cuenta_destino, id_tipo_transaccion, id_estado_transaccion, monto, referencia, descripcion) VALUES (?,?,?,?,?,?,?)`,
+        idOrigen, idDestino, idTipoTransaccion, idEstadoPendiente, monto, referencia, descripcion)
 	if err != nil {
 		return err
 	}
 	transID, _ := res.LastInsertId()
 
 	// Debitar y acreditar
-	if _, err := tx.Exec(`UPDATE CUENTA SET saldo = saldo - ? WHERE id_cuenta = ?`, monto, idOrigen); err != nil {
+    if _, err := tx.Exec(`UPDATE CUENTA SET saldo_actual = saldo_actual - ?, saldo_disponible = saldo_disponible - ? WHERE id_cuenta = ?`, monto, monto, idOrigen); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`UPDATE CUENTA SET saldo = saldo + ? WHERE id_cuenta = ?`, monto, idDestino); err != nil {
+    if _, err := tx.Exec(`UPDATE CUENTA SET saldo_actual = saldo_actual + ?, saldo_disponible = saldo_disponible + ? WHERE id_cuenta = ?`, monto, monto, idDestino); err != nil {
 		return err
 	}
 
 	// Nuevos saldos
 	var nuevoOrigen float64
 	var nuevoDestino float64
-	if err := tx.QueryRow(`SELECT saldo FROM CUENTA WHERE id_cuenta=?`, idOrigen).Scan(&nuevoOrigen); err != nil {
+    if err := tx.QueryRow(`SELECT saldo_disponible FROM CUENTA WHERE id_cuenta=?`, idOrigen).Scan(&nuevoOrigen); err != nil {
 		return err
 	}
-	if err := tx.QueryRow(`SELECT saldo FROM CUENTA WHERE id_cuenta=?`, idDestino).Scan(&nuevoDestino); err != nil {
+    if err := tx.QueryRow(`SELECT saldo_disponible FROM CUENTA WHERE id_cuenta=?`, idDestino).Scan(&nuevoDestino); err != nil {
 		return err
 	}
 
 	// Auditoría
-	if _, err := tx.Exec(`INSERT INTO AUDITORIA (id_transaccion, saldo_anterior_origen, saldo_nuevo_origen, saldo_anterior_destino, saldo_nuevo_destino) VALUES (?,?,?,?,?)`,
-		transID, saldoOrigen, nuevoOrigen, saldoDestino, nuevoDestino); err != nil {
+    if _, err := tx.Exec(`INSERT INTO AUDITORIA_TRANSACCIONES (id_transaccion, accion, saldo_anterior_origen, saldo_nuevo_origen, saldo_anterior_destino, saldo_nuevo_destino) VALUES (?,?,?,?,?,?)`,
+        transID, "Movimiento", saldoOrigen, nuevoOrigen, saldoDestino, nuevoDestino); err != nil {
 		return err
 	}
 
 	// Completar transacción
-	if _, err := tx.Exec(`UPDATE TRANSACCION SET completada=true WHERE id_transaccion=?`, transID); err != nil {
+    var idEstadoCompletada int
+    if err := tx.QueryRow(`SELECT id_estado_transaccion FROM ESTADO_TRANSACCION WHERE nombre_estado = 'Completada'`).Scan(&idEstadoCompletada); err != nil {
+        return err
+    }
+    if _, err := tx.Exec(`UPDATE TRANSACCION SET id_estado_transaccion=?, fecha_procesamiento = NOW() WHERE id_transaccion=?`, idEstadoCompletada, transID); err != nil {
 		return err
 	}
 

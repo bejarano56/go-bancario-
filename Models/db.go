@@ -16,5 +16,9 @@ func InitDB() error {
 	if err != nil {
 		return err
 	}
-	return DB.Ping()
+    if err := DB.Ping(); err != nil {
+        return err
+    }
+    return nil
 }
+

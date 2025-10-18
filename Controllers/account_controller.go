@@ -14,14 +14,22 @@ import (
 
 func AccountHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
-		http.Redirect(w, r, "/listado", http.StatusSeeOther)
+		// Devolver cuentas como JSON para el listado
+		cuentas, err := Models.ListarCuentas()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(cuentas)
 		return
 	}
 	if r.Method == "POST" {
 		log.Println("POST /cuentas - inicio")
 		idTipo, _ := strconv.Atoi(r.FormValue("id_tipo_cuenta"))
 
-		// datos del cliente desde el formulario
+        // datos del cliente desde el formulario
 		cliente := Models.Cliente{
 			NumeroDocumento: r.FormValue("numero_documento"),
 			TipoDocumento:   r.FormValue("tipo_documento"),
@@ -37,8 +45,14 @@ func AccountHandler(w http.ResponseWriter, r *http.Request) {
 		cliente.Telefono.String = r.FormValue("telefono")
 		cliente.Telefono.Valid = cliente.Telefono.String != ""
 
-		// validaciones mínimas servidor
-		if cliente.NumeroDocumento == "" || cliente.TipoDocumento == "" || cliente.PrimerNombre == "" || cliente.PrimerApellido == "" || cliente.Email == "" {
+        // fecha de nacimiento requerida por esquema
+        fnacStr := r.FormValue("fecha_nacimiento")
+        if fnac, err := time.Parse("2006-01-02", fnacStr); err == nil {
+            cliente.FechaNacimiento = fnac
+        }
+
+        // validaciones mínimas servidor
+        if cliente.NumeroDocumento == "" || cliente.TipoDocumento == "" || cliente.PrimerNombre == "" || cliente.PrimerApellido == "" || cliente.Email == "" || cliente.FechaNacimiento.IsZero() {
 			http.Redirect(w, r, "/crear?error="+urlQuery("Campos requeridos faltantes"), http.StatusSeeOther)
 			return
 		}
@@ -84,17 +98,24 @@ func AccountHandler(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/crear?error="+urlQuery("No se pudo generar el número de cuenta"), http.StatusSeeOther)
 			return
 		}
-		activa := true
-		saldo := 500000.00
+        saldo := 500000.00
 		fecha := time.Now()
+        // obtener id estado 'Activa'
+        var idEstado int
+        if err := Models.DB.QueryRow(`SELECT id_estado FROM ESTADO_CUENTA WHERE nombre_estado='Activa'`).Scan(&idEstado); err != nil {
+            log.Println("error estado activa:", err)
+            http.Redirect(w, r, "/crear?error="+urlQuery("No se pudo obtener el estado 'Activa'"), http.StatusSeeOther)
+            return
+        }
 
 		log.Println("POST /cuentas - crear cuenta")
-		cuentaID, err := Models.CrearCuenta(Models.Cuenta{
+        cuentaID, err := Models.CrearCuenta(Models.Cuenta{
 			NumeroCuenta:  numero,
 			IDCliente:     idCliente,
 			IDTipoCuenta:  idTipo,
-			Saldo:         saldo,
-			Activa:        activa,
+            IDEstado:      idEstado,
+            SaldoActual:   saldo,
+            SaldoDisp:     saldo,
 			FechaApertura: fecha,
 		})
 		if err != nil {
@@ -248,6 +269,10 @@ func CrearPageHandler(w http.ResponseWriter, r *http.Request) {
           <div class="col-6">
             <label class="form-label">Teléfono</label>
             <input type="text" id="telefono" name="telefono" class="form-control">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Fecha de nacimiento</label>
+            <input type="date" id="fecha_nacimiento" name="fecha_nacimiento" class="form-control" required>
           </div>
           <div class="col-12">
             <label class="form-label">Tipo de cuenta</label>
