@@ -151,6 +151,23 @@ func RandDigits(n int) string {
 	return string(b)
 }
 
+// GenerarReferenciaUnica genera una referencia única para transacciones
+func GenerarReferenciaUnica() string {
+	for i := 0; i < 5; i++ {
+		candidate := "REF-" + time.Now().Format("20060102150405") + RandDigits(6)
+		var exists int
+		q := `SELECT 1 FROM transaccion WHERE referencia=? LIMIT 1`
+		err := DB.QueryRow(q, candidate).Scan(&exists)
+		if err == sql.ErrNoRows {
+			return candidate
+		}
+		if err != nil {
+			continue
+		}
+	}
+	return "REF-" + time.Now().Format("20060102150405") + RandDigits(6) + "-FALLBACK"
+}
+
 // Clientes
 func CrearCliente(c Cliente) (int64, error) {
     res, err := DB.Exec(`INSERT INTO cliente (numero_documento, tipo_documento, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, email, telefono, fecha_nacimiento) VALUES (?,?,?,?,?,?,?,?,?)`,
@@ -271,62 +288,74 @@ func Transferir(idOrigen, idDestino, idTipoTransaccion int, monto float64, refer
 	defer tx.Rollback()
 
 	// Saldos actuales
-    var saldoOrigen float64
-    if err := tx.QueryRow(`SELECT saldo_disponible FROM CUENTA WHERE id_cuenta=? FOR UPDATE`, idOrigen).Scan(&saldoOrigen); err != nil {
+	   var saldoOrigen float64
+	   if err := tx.QueryRow(`SELECT saldo_disponible FROM cuenta WHERE id_cuenta=? FOR UPDATE`, idOrigen).Scan(&saldoOrigen); err != nil {
+		if err == sql.ErrNoRows {
+			return errors.New("cuenta origen no existe")
+		}
 		return err
 	}
 	if saldoOrigen < monto {
 		return errors.New("fondos insuficientes")
 	}
 
-    var saldoDestino sql.NullFloat64
-    if err := tx.QueryRow(`SELECT saldo_disponible FROM CUENTA WHERE id_cuenta=? FOR UPDATE`, idDestino).Scan(&saldoDestino); err != nil {
+	   var saldoDestino sql.NullFloat64
+	   if err := tx.QueryRow(`SELECT saldo_disponible FROM cuenta WHERE id_cuenta=? FOR UPDATE`, idDestino).Scan(&saldoDestino); err != nil {
+		if err == sql.ErrNoRows {
+			return errors.New("cuenta destino no existe")
+		}
 		return err
 	}
 
 	// Registrar transacción pendiente
-    // estado inicial: Pendiente (buscar id)
-    var idEstadoPendiente int
-    if err := tx.QueryRow(`SELECT id_estado_transaccion FROM ESTADO_TRANSACCION WHERE nombre_estado = 'Pendiente'`).Scan(&idEstadoPendiente); err != nil {
-        return err
-    }
-    res, err := tx.Exec(`INSERT INTO TRANSACCION (id_cuenta_origen, id_cuenta_destino, id_tipo_transaccion, id_estado_transaccion, monto, referencia, descripcion) VALUES (?,?,?,?,?,?,?)`,
-        idOrigen, idDestino, idTipoTransaccion, idEstadoPendiente, monto, referencia, descripcion)
+	   // estado inicial: Pendiente (buscar id)
+	   var idEstadoPendiente int
+	   if err := tx.QueryRow(`SELECT id_estado_transaccion FROM estado_transaccion WHERE nombre_estado = 'Pendiente'`).Scan(&idEstadoPendiente); err != nil {
+	       if err == sql.ErrNoRows {
+	           return errors.New("estado de transacción 'Pendiente' no encontrado")
+	       }
+	       return err
+	   }
+	   res, err := tx.Exec(`INSERT INTO transaccion (id_cuenta_origen, id_cuenta_destino, id_tipo_transaccion, id_estado_transaccion, monto, referencia, descripcion) VALUES (?,?,?,?,?,?,?)`,
+	       idOrigen, idDestino, idTipoTransaccion, idEstadoPendiente, monto, referencia, descripcion)
 	if err != nil {
 		return err
 	}
 	transID, _ := res.LastInsertId()
 
 	// Debitar y acreditar
-    if _, err := tx.Exec(`UPDATE CUENTA SET saldo_actual = saldo_actual - ?, saldo_disponible = saldo_disponible - ? WHERE id_cuenta = ?`, monto, monto, idOrigen); err != nil {
+	   if _, err := tx.Exec(`UPDATE cuenta SET saldo_actual = saldo_actual - ?, saldo_disponible = saldo_disponible - ? WHERE id_cuenta = ?`, monto, monto, idOrigen); err != nil {
 		return err
 	}
-    if _, err := tx.Exec(`UPDATE CUENTA SET saldo_actual = saldo_actual + ?, saldo_disponible = saldo_disponible + ? WHERE id_cuenta = ?`, monto, monto, idDestino); err != nil {
+	   if _, err := tx.Exec(`UPDATE cuenta SET saldo_actual = saldo_actual + ?, saldo_disponible = saldo_disponible + ? WHERE id_cuenta = ?`, monto, monto, idDestino); err != nil {
 		return err
 	}
 
 	// Nuevos saldos
 	var nuevoOrigen float64
 	var nuevoDestino float64
-    if err := tx.QueryRow(`SELECT saldo_disponible FROM CUENTA WHERE id_cuenta=?`, idOrigen).Scan(&nuevoOrigen); err != nil {
+	   if err := tx.QueryRow(`SELECT saldo_disponible FROM cuenta WHERE id_cuenta=?`, idOrigen).Scan(&nuevoOrigen); err != nil {
 		return err
 	}
-    if err := tx.QueryRow(`SELECT saldo_disponible FROM CUENTA WHERE id_cuenta=?`, idDestino).Scan(&nuevoDestino); err != nil {
+	   if err := tx.QueryRow(`SELECT saldo_disponible FROM cuenta WHERE id_cuenta=?`, idDestino).Scan(&nuevoDestino); err != nil {
 		return err
 	}
 
 	// Auditoría
-    if _, err := tx.Exec(`INSERT INTO AUDITORIA_TRANSACCIONES (id_transaccion, accion, saldo_anterior_origen, saldo_nuevo_origen, saldo_anterior_destino, saldo_nuevo_destino) VALUES (?,?,?,?,?,?)`,
-        transID, "Movimiento", saldoOrigen, nuevoOrigen, saldoDestino, nuevoDestino); err != nil {
+	   if _, err := tx.Exec(`INSERT INTO auditoria_transacciones (id_transaccion, accion, saldo_anterior_origen, saldo_nuevo_origen, saldo_anterior_destino, saldo_nuevo_destino) VALUES (?,?,?,?,?,?)`,
+	       transID, "Movimiento", saldoOrigen, nuevoOrigen, saldoDestino, nuevoDestino); err != nil {
 		return err
 	}
 
 	// Completar transacción
-    var idEstadoCompletada int
-    if err := tx.QueryRow(`SELECT id_estado_transaccion FROM ESTADO_TRANSACCION WHERE nombre_estado = 'Completada'`).Scan(&idEstadoCompletada); err != nil {
-        return err
-    }
-    if _, err := tx.Exec(`UPDATE TRANSACCION SET id_estado_transaccion=?, fecha_procesamiento = NOW() WHERE id_transaccion=?`, idEstadoCompletada, transID); err != nil {
+	   var idEstadoCompletada int
+	   if err := tx.QueryRow(`SELECT id_estado_transaccion FROM estado_transaccion WHERE nombre_estado = 'Completada'`).Scan(&idEstadoCompletada); err != nil {
+	       if err == sql.ErrNoRows {
+	           return errors.New("estado de transacción 'Completada' no encontrado")
+	       }
+	       return err
+	   }
+	   if _, err := tx.Exec(`UPDATE transaccion SET id_estado_transaccion=?, fecha_procesamiento = NOW() WHERE id_transaccion=?`, idEstadoCompletada, transID); err != nil {
 		return err
 	}
 

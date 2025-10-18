@@ -129,12 +129,53 @@ func AccountHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "PUT" {
+		if err := r.ParseForm(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Error parsing form: " + err.Error()))
+			return
+		}
 		fromID, _ := strconv.Atoi(r.FormValue("id_origen"))
 		toID, _ := strconv.Atoi(r.FormValue("id_destino"))
 		tipoID, _ := strconv.Atoi(r.FormValue("id_tipo_transaccion"))
 		amount, _ := strconv.ParseFloat(r.FormValue("monto"), 64)
 		referencia := r.FormValue("referencia")
 		descripcion := r.FormValue("descripcion")
+
+		// Generar referencia única si no se proporciona
+		if referencia == "" {
+			referencia = Models.GenerarReferenciaUnica()
+		}
+
+		// Validaciones básicas
+		if fromID == 0 || toID == 0 || tipoID == 0 || amount <= 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Campos requeridos faltantes o inválidos: fromID="+strconv.Itoa(fromID)+", toID="+strconv.Itoa(toID)+", tipoID="+strconv.Itoa(tipoID)+", amount="+strconv.FormatFloat(amount, 'f', -1, 64)))
+			return
+		}
+
+		// Verificar que las cuentas existen
+		var count int
+		if err := Models.DB.QueryRow(`SELECT COUNT(*) FROM cuenta WHERE id_cuenta = ?`, fromID).Scan(&count); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Error verificando cuenta origen: " + err.Error()))
+			return
+		}
+		if count == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Cuenta origen no existe (ID: " + strconv.Itoa(fromID) + ")"))
+			return
+		}
+		if err := Models.DB.QueryRow(`SELECT COUNT(*) FROM cuenta WHERE id_cuenta = ?`, toID).Scan(&count); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Error verificando cuenta destino: " + err.Error()))
+			return
+		}
+		if count == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Cuenta destino no existe (ID: " + strconv.Itoa(toID) + ")"))
+			return
+		}
+
 		if err := Models.Transferir(fromID, toID, tipoID, amount, referencia, descripcion); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte(err.Error()))
