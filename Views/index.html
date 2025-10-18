@@ -13,86 +13,25 @@
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
   <div class="container-fluid">
-    <a class="navbar-brand" href="#">Sistema Bancario</a>
+    <a class="navbar-brand" href="/">Sistema Bancario</a>
   </div>
   </nav>
 
-<div class="container my-4">
-  <div class="row g-4">
-    <div class="col-12 col-lg-6">
-      <div class="card shadow-sm">
-        <div class="card-header">Crear cuenta</div>
-        <div class="card-body">
-          <form id="form-cuenta" class="row g-3">
-            <div class="col-12">
-              <label class="form-label">Nombres y apellidos</label>
-              <input type="text" id="nombre_completo" class="form-control" placeholder="Ej: Ana María Pérez" required>
-            </div>
-            <div class="col-12">
-              <label class="form-label">Tipo de cuenta</label>
-              <select id="id_tipo_cuenta" class="form-select" required></select>
-            </div>
-            <div class="col-12">
-              <label class="form-label">Saldo inicial</label>
-              <input type="text" id="saldo" class="form-control" value="$500.000" disabled>
-              <div class="form-text">Moneda: pesos colombianos (COP)</div>
-            </div>
-            <div class="col-12">
-              <button type="submit" class="btn btn-primary w-100">Crear cuenta</button>
-            </div>
-            <div class="col-12">
-              <small class="text-muted">El número de cuenta y el ID del cliente se generan automáticamente.</small>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
+<div class="container my-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 text-center">
+      <h1 class="display-4 mb-4">Bienvenido al Sistema Bancario</h1>
+      <p class="lead mb-4">Gestione sus cuentas bancarias de forma segura y eficiente</p>
 
-    <div class="col-12 col-lg-6">
-      <div class="card shadow-sm">
-        <div class="card-header">Transferir</div>
-        <div class="card-body">
-          <form id="form-transferir" class="row g-3">
-            <div class="col-6">
-              <label class="form-label">Cuenta origen</label>
-              <input type="number" id="id_origen" class="form-control" required>
-            </div>
-            <div class="col-6">
-              <label class="form-label">Cuenta destino</label>
-              <input type="number" id="id_destino" class="form-control" required>
-            </div>
-            <div class="col-6">
-              <label class="form-label">Monto</label>
-              <input type="number" id="monto" class="form-control" required>
-            </div>
-            <div class="col-6">
-              <label class="form-label">Referencia</label>
-              <input type="text" id="referencia" class="form-control" required>
-            </div>
-            <div class="col-12">
-              <label class="form-label">Descripción</label>
-              <input type="text" id="descripcion" class="form-control">
-            </div>
-            <input type="hidden" id="id_tipo_transaccion" value="1">
-            <div class="col-12">
-              <button type="submit" class="btn btn-success">Enviar</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="card shadow-sm mt-4">
-    <div class="card-header">Cuentas</div>
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-striped mb-0" id="tabla-cuentas">
-          <thead class="table-light">
-            <tr><th>ID</th><th>Número</th><th>ID Cliente</th><th>Tipo</th><th>Saldo</th><th>Activa</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+      <div class="dropdown">
+        <button class="btn btn-primary btn-lg dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          Acceder al Sistema
+        </button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="/crear">Crear cuenta</a></li>
+          <li><a class="dropdown-item" href="/transferir">Transferir</a></li>
+          <li><a class="dropdown-item" href="/listado">Ver cuentas</a></li>
+        </ul>
       </div>
     </div>
   </div>

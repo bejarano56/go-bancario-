@@ -13,10 +13,15 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
   <div class="container-fluid">
     <a class="navbar-brand" href="/">Sistema Bancario</a>
-    <div>
-      <a class="nav-link d-inline text-white" href="/crear">Crear cuenta</a>
-      <a class="nav-link d-inline text-white" href="/transferir">Transferir</a>
-      <a class="nav-link d-inline text-white" href="/listado">Cuentas</a>
+    <div class="dropdown">
+      <button class="btn btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        Menú
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="/crear">Crear cuenta</a></li>
+        <li><a class="dropdown-item" href="/transferir">Transferir</a></li>
+        <li><a class="dropdown-item" href="/listado">Cuentas</a></li>
+      </ul>
     </div>
   </div>
   </nav>
@@ -28,11 +33,11 @@
       <div class="card-body">
         <form id="form-transferir" class="row g-3">
           <div class="col-6">
-            <label class="form-label">Cuenta origen</label>
+            <label class="form-label">Cuenta origen (ID)</label>
             <input type="number" id="id_origen" class="form-control" required>
           </div>
           <div class="col-6">
-            <label class="form-label">Cuenta destino</label>
+            <label class="form-label">Cuenta destino (ID)</label>
             <input type="number" id="id_destino" class="form-control" required>
           </div>
           <div class="col-6">
@@ -41,7 +46,7 @@
           </div>
           <div class="col-6">
             <label class="form-label">Referencia</label>
-            <input type="text" id="referencia" class="form-control" required>
+            <input type="text" id="referencia" class="form-control" placeholder="Se generará automáticamente si se deja vacío">
           </div>
           <div class="col-12">
             <label class="form-label">Descripción</label>
